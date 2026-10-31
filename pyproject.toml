@@ -17,6 +17,7 @@ dependencies = [
     "mcp>=2.3.0",
     "procrastinate>=3.10.0",
     "pydantic>=2.14.2",
+    "pydantic-settings>=2.16.2",
     "pyyaml>=6.0.3",
     "sqlmodel>=0.0.48",
     "structlog>=26.1.0",
@@ -55,6 +56,8 @@ convention = "google"
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["D"]
 "migrations/**" = ["D"]
+# Error names follow the domain spec (NotAMaintainer, DraftChanged), not an Error suffix.
+"src/heimdall/shared/errors.py" = ["N818"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["heimdall"]
