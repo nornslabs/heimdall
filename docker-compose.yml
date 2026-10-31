@@ -1,0 +1,115 @@
+# Local stack. `docker compose up` starts Postgres and Mattermost (Switch).
+# Add `--profile app` for the Heimdall processes and `--profile tunnel` for GitHub webhooks.
+
+x-heimdall: &heimdall
+  build: .
+  image: heimdall:dev
+  profiles: ["app"]
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    HEIMDALL_DATABASE_URL: postgresql://heimdall:${POSTGRES_PASSWORD:-heimdall}@postgres:5432/heimdall
+    HEIMDALL_GITHUB_PRIVATE_KEY_PATH: /run/secrets/github-app.pem
+  volumes:
+    # Fail loudly if the key is missing instead of Docker creating an empty directory there.
+    - type: bind
+      source: ./secrets/github-app.pem
+      target: /run/secrets/github-app.pem
+      read_only: true
+      bind:
+        create_host_path: false
+  depends_on:
+    postgres:
+      condition: service_healthy
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: heimdall
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-heimdall}
+      POSTGRES_DB: heimdall
+      MATTERMOST_DB_PASSWORD: ${MATTERMOST_DB_PASSWORD:-mattermost}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres-init.sh:/docker-entrypoint-initdb.d/10-mattermost.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U heimdall -d heimdall"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mattermost:
+    image: mattermost/mattermost-team-edition:10.11
+    # Mattermost ships amd64 images only; Docker Desktop runs them under Rosetta on Apple Silicon.
+    platform: linux/amd64
+    environment:
+      MM_SQLSETTINGS_DRIVERNAME: postgres
+      MM_SQLSETTINGS_DATASOURCE: postgres://mattermost:${MATTERMOST_DB_PASSWORD:-mattermost}@postgres:5432/mattermost?sslmode=disable&connect_timeout=10
+      MM_SERVICESETTINGS_SITEURL: http://localhost:8065
+      MM_SERVICESETTINGS_ENABLEBOTACCOUNTCREATION: "true"
+    ports:
+      - "${MATTERMOST_PORT:-8065}:8065"
+    volumes:
+      - mattermost-data:/mattermost/data
+      - mattermost-config:/mattermost/config
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  api:
+    <<: *heimdall
+    command: ["api"]
+    ports:
+      - "${API_PORT:-8000}:8000"
+
+  worker:
+    <<: *heimdall
+    command: ["worker"]
+
+  mcp:
+    <<: *heimdall
+    command: ["mcp"]
+
+  bridge:
+    <<: *heimdall
+    command: ["bridge"]
+
+  huginn:
+    <<: *heimdall
+    command: ["huginn"]
+
+  loki:
+    <<: *heimdall
+    command: ["loki"]
+
+  heimdall:
+    <<: *heimdall
+    command: ["heimdall"]
+
+  tunnel:
+    image: node:22-alpine
+    profiles: ["tunnel"]
+    env_file:
+      - path: .env
+        required: false
+    # $$ defers expansion to the container, so plain `docker compose up` doesn't need SMEE_URL.
+    command:
+      - sh
+      - -c
+      - >-
+        test -n "$${SMEE_URL:-}" || { echo "set SMEE_URL in .env" >&2; exit 64; };
+        exec npx --yes smee-client@5.0.0 --url "$$SMEE_URL" --target http://api:8000/webhooks/github
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  mattermost-data:
+  mattermost-config:
