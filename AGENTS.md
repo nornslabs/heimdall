@@ -22,7 +22,10 @@ uv run pytest                    # all tests
 uv run pytest tests/unit         # fast tests only (no DB, no network)
 uv run ruff check . && uv run ruff format --check .
 uv run pyright
-docker compose up                # full stack
+cp .env.example .env            # then fill in; GitHub App key goes in secrets/github-app.pem
+docker compose up                # Postgres + Mattermost (Switch)
+docker compose --profile app up  # + api, worker, mcp, bridge and the three agents
+docker compose --profile app --profile tunnel up   # + smee webhook tunnel
 ```
 
 Run `ruff`, `pyright` and `pytest tests/unit` before you say a change is done.

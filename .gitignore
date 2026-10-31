@@ -25,3 +25,7 @@ htmlcov/
 
 # Local agent tooling
 .serena/
+
+# Mounted secrets (GitHub App key etc.)
+secrets/*
+!secrets/README.md
