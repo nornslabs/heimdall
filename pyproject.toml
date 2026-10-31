@@ -1,0 +1,82 @@
+[project]
+name = "heimdall"
+version = "0.1.0"
+description = "PR triage room on Switch: rule checks, three agents, maintainer-approved GitHub output."
+readme = "README.md"
+authors = [
+    { name = "sboy99", email = "shadowboy191@gmail.com" }
+]
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "alembic>=1.20.1",
+    "asyncpg>=0.32.0",
+    "fastapi>=0.162.0",
+    "githubkit>=0.17.0",
+    "httpx>=0.28.1",
+    "junitparser>=5.0.3",
+    "mcp>=2.3.0",
+    "procrastinate>=3.10.0",
+    "pydantic>=2.14.2",
+    "pyyaml>=6.0.3",
+    "sqlmodel>=0.0.48",
+    "structlog>=26.1.0",
+    "unidiff>=1.0.1",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.18,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.414",
+    "pytest>=9.2.0",
+    "pytest-asyncio>=1.4.1",
+    "ruff>=0.17.3",
+]
+
+# --- ruff -------------------------------------------------------------------
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = [".serena"]
+
+[tool.ruff.format]
+# Docs (AGENTS.md etc.) are hand-written; don't reflow their code samples.
+exclude = ["*.md"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "N", "D", "RUF"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D"]
+"migrations/**" = ["D"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["heimdall"]
+
+# --- pyright ----------------------------------------------------------------
+
+[tool.pyright]
+pythonVersion = "3.12"
+include = ["src", "apps", "tests"]
+exclude = ["**/__pycache__", ".venv", ".serena"]
+strict = ["src"]
+venvPath = "."
+venv = ".venv"
+
+# --- pytest -----------------------------------------------------------------
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-ra --strict-markers"
+markers = [
+    "integration: needs a running Postgres (DATABASE_URL)",
+    "e2e: full-stack end-to-end tests",
+]

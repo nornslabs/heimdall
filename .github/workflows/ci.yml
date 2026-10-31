@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Lint, types and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: heimdall
+          POSTGRES_PASSWORD: heimdall
+          POSTGRES_DB: heimdall_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U heimdall"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Sync dependencies
+        run: uv sync --locked
+
+      - name: Ruff lint
+        run: uv run ruff check . --output-format=github
+
+      - name: Ruff format
+        run: uv run ruff format --check .
+
+      - name: Pyright
+        run: uv run pyright
+
+      - name: Unit tests
+        run: uv run pytest tests/unit
+
+      - name: Integration tests
+        env:
+          DATABASE_URL: postgresql://heimdall:heimdall@localhost:5432/heimdall_test
+        run: uv run pytest tests/integration
